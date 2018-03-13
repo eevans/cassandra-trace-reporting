@@ -9,15 +9,14 @@ You need some traces to look at, so maybe...
 
     $ nodetool settraceprobability 0.1  # Trace 10% of all queries
 
-Invoke `traces` to view stored trace sessions and/or events.
+Invoke `cassandra-trace-reporting` to view stored trace sessions and/or events.
 
-    usage: traces [<flags>] <command> [<args> ...]
+    usage: cassandra-trace-reporting [<flags>] <command> [<args> ...]
     
     Introspect Cassandra query traces.
     
     Flags:
-      --help                  Show context-sensitive help (also try --help-long and
-                              --help-man).
+      --help                  Show context-sensitive help (also try --help-long and --help-man).
       --cqlshrc="cqlshrc"     Full path to cqlshrc file.
       --hostname="localhost"  Cassandra host.
       --port=9042             Cassanra port.
@@ -37,7 +36,10 @@ Invoke `traces` to view stored trace sessions and/or events.
     
         --id=ID                    Session ID
         --only-source=ONLY-SOURCE  Only show events for a specific source.
-
+    
+      stats
+        Report query statistics.
+    
 
 Shell completion
 ----------------

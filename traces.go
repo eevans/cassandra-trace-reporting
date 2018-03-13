@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	app      = kingpin.New("traces", "Introspect Cassandra query traces.")
+	app      = kingpin.New("cassandra-trace-reporting", "Introspect Cassandra query traces.")
 	cqlshrc  = app.Flag("cqlshrc", "Full path to cqlshrc file.").Default("cqlshrc").String()
 	hostname = app.Flag("hostname", "Cassandra host.").Default("localhost").String()
 	port     = app.Flag("port", "Cassanra port.").Default("9042").Int()
@@ -28,6 +28,8 @@ var (
 	events     = app.Command("events", "Retrieve events for a trace session.")
 	sessId     = events.Flag("id", "Session ID").Required().String()
 	onlySource = events.Flag("only-source", "Only show events for a specific source.").String()
+
+	statistics = app.Command("stats", "Report query statistics.")
 
 	// Console colors
 	yellow = color.New(color.FgYellow).SprintFunc()
@@ -67,6 +69,25 @@ func NewCqlshrc(filename string) (*Cqlshrc, error) {
 	}
 
 	return result, nil
+}
+
+type queryStats struct {
+	min, max, cumulative, count int
+}
+
+func (q *queryStats) update(duration int) {
+	q.cumulative += duration
+	q.count += 1
+	if duration < q.min {
+		q.min = duration
+	}
+	if duration > q.max {
+		q.max = duration
+	}
+}
+
+func (q *queryStats) avg() int {
+	return q.cumulative / q.count
 }
 
 func CreateSession(hostname string, port int, cqlshrc string) (*gocql.Session, error) {
@@ -204,5 +225,54 @@ func main() {
 		if err := iter.Close(); err != nil {
 			log.Fatal(err)
 		}
+
+	// statistics
+	case statistics.FullCommand():
+		client, err := CreateSession(*hostname, *port, *cqlshrc)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer client.Close()
+
+		// a map of query strigs and queryStats structs
+		queries := make(map[string]*queryStats)
+
+		var duration int
+		var parameters map[string]string
+		count := 0
+
+		iter := client.Query("SELECT duration,parameters FROM system_traces.sessions").Iter()
+		for iter.Scan(&duration, &parameters) {
+			if v, exists := queries[parameters["query"]]; !exists {
+				queries[parameters["query"]] = &queryStats{duration, duration, duration, 1}
+			} else {
+				v.update(duration)
+			}
+			count += 1
+		}
+
+		if err := iter.Close(); err != nil {
+			log.Fatal(err)
+		}
+
+		keys := make([]string, 0, len(queries))
+
+		for k := range queries {
+			keys = append(keys, k)
+		}
+
+		// Order our list of keys by the corresponding query avg, descending.
+		sort.Slice(keys, func(i, j int) bool {
+			return queries[keys[i]].avg() > queries[keys[j]].avg()
+		})
+
+		fmt.Printf("%9s | %5s | %5s | %5s | %s\n", "Count", "Min", "Max", "Avg", "Query")
+
+		for k := range keys {
+			s := queries[keys[k]]
+			fmt.Printf("%9d | %5d | %5d | %5d | %s\n", s.count, s.min, s.max, s.avg(), cyan(keys[k]))
+		}
+
+		fmt.Printf("\n%d unique queries (%d total sessions analyzed).\n", len(queries), count)
 	}
 }
