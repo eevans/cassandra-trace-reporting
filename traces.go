@@ -196,7 +196,7 @@ func main() {
 
 			// (Maybe )filter events to those from a single source name/IP.
 			if len(*onlySource) < 1 || *onlySource == srcName {
-				fmt.Printf("%2d |%-48s | %15s | %8d | %s | %s\n", lineNo, yellow(id), srcName, srcElapsed, thread, cyan(activity))
+				fmt.Printf("%2d | %-48s | %15s | %8d | %s | %s\n", lineNo, yellow(id), srcName, srcElapsed, thread, cyan(activity))
 				lineNo += 1
 			}
 		}
